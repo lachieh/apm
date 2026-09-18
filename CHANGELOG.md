@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- A full `apm install` and `apm lock` now warn, discard `apm.lock.yaml`, and resolve from `apm.yml` when the lockfile still contains git merge conflict markers, instead of exiting with a YAML parse error. `apm install --frozen`, partial installs, and read-only commands such as `apm update` and `apm outdated` fail closed with an error that names the conflict and the next action, and the `--frozen` failure tip no longer points at commands that cannot read the lockfile. (#2979)
+- A full `apm install` and `apm lock` now warn, discard `apm.lock.yaml`, and resolve from `apm.yml` when the lockfile still contains git merge conflict markers, instead of exiting with a YAML parse error. `apm install --frozen`, partial installs, and read-only commands such as `apm update` and `apm outdated` fail closed with an error that names the conflict and the next action, and the `--frozen` failure tip no longer points at commands that cannot read the lockfile. (closes #2979) (#3028)
 - GitLab `path:` dependencies now preserve the selected SSH transport, username, and port instead of silently using HTTPS; REST fallback requires an executed same-origin HTTPS attempt admitted by the transport policy. (#2938)
 
 ## [0.30.0] - 2026-09-07
