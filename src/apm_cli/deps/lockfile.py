@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -75,6 +76,45 @@ class LockfileFormatError(ValueError):
 
 class UnsupportedLockfileVersionError(LockfileFormatError):
     """Raised when a lockfile declares a version this client cannot read."""
+
+
+def _command_path(path: Path) -> str:
+    """Render *path* as the caller would type it from the current directory.
+
+    A lockfile under the working directory prints as a short relative path; one
+    outside it -- a user-scope lockfile, or an ancestor project's -- keeps its
+    absolute form so the printed command cannot target a different local file.
+    """
+    try:
+        relative = Path(os.path.relpath(path))
+    except ValueError:  # different drive on Windows
+        return str(path)
+    return str(path) if relative.is_absolute() or ".." in relative.parts else str(relative)
+
+
+class LockfileConflictError(LockfileFormatError):
+    """Raised when a lockfile still contains git merge conflict markers."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        target = _command_path(path)
+        super().__init__(
+            f"{path} contains unresolved git merge conflict markers.\n"
+            "Resolve the conflict in that file, then reinstall:\n"
+            f"    git checkout {target} --ours # or --theirs, mid-merge only\n"
+            "    apm install"
+        )
+
+
+# Git writes each marker at the start of a line, followed by a space and a label
+# (or nothing, for a bare ``=======`` separator). A separator alone is not
+# evidence of a conflict, so only the labelled markers are matched here.
+_CONFLICT_MARKER_RE = re.compile(r"^(?:<{7}|>{7}|\|{7})(?: |$)", re.MULTILINE)
+
+
+def has_conflict_markers(text: str) -> bool:
+    """Return True when *text* contains a git merge conflict marker at line start."""
+    return _CONFLICT_MARKER_RE.search(text) is not None
 
 
 def require_supported_lockfile_version(data: object) -> str:
@@ -1034,11 +1074,14 @@ class LockFile:
 
     @classmethod
     def read(cls, path: Path) -> LockFile | None:
-        """Read lock file from disk. Returns None if not exists or corrupt."""
+        """Read lock file from disk. Returns None when the file does not exist."""
         if not path.exists():
             return None
         try:
-            return cls.from_yaml(path.read_text(encoding="utf-8"))
+            text = path.read_text(encoding="utf-8")
+            if has_conflict_markers(text):
+                raise LockfileConflictError(path)
+            return cls.from_yaml(text)
         except (LockfileFormatError, UnsupportedLockfileVersionError):
             raise
         except (yaml.YAMLError, ValueError, KeyError, TypeError) as exc:
