@@ -1169,16 +1169,14 @@ of the versions it recognises, with a diagnostic that explicitly
 offers the user a choice of either upgrading the consumer or
 regenerating the lockfile from the manifest.
 
+This section also covers diagnosis of unresolved merge-conflict markers at load time.
+
 <a id="req-lk-023"></a>
 **[req-lk-023]** A conforming **consumer** implementation that
 encounters a lockfile carrying unresolved version-control merge
 conflict markers (for example, lines beginning with seven consecutive
 less-than, greater-than, or pipe characters followed by a space or
 end-of-line) MUST satisfy all of the following:
-
-Note -- that parenthetical is an interim illustrative aid; the
-normative minimum marker grammar is not yet pinned by this
-specification.
 
 (a) **Recognise the condition where the lockfile is loaded.** The
 consumer MUST identify the markers through the same authority that
@@ -1201,6 +1199,9 @@ This requirement governs diagnosis only. A lockfile that is
 unreadable for any other reason is out of scope and continues to be
 handled as before, and this requirement neither defines nor
 authorises automatic recovery from a conflicted lockfile.
+
+> **Note.** The parenthetical above is an interim illustrative aid; the
+> normative minimum marker grammar is not yet pinned by this specification.
 
 ### 5.5 Drift and integrity model
 

@@ -21,7 +21,6 @@ from tests.spec_conformance._helpers import (
     validate_against,
     waive,
 )
-from tests.utils.diagnostic_recipe import shell_commands_in
 
 V1 = ("lockfile", "v1-git-only.yml")
 V2 = ("lockfile", "v2-with-registry.yml")
@@ -806,25 +805,22 @@ def test_conflict_diagnostic_names_an_action_for_the_unreadable_file(
         LockFile.read(lockfile_path)
 
     message = str(conflict.value)
-    commands = shell_commands_in(message)
-    assert commands, "the diagnostic MUST name an action the user can run"
+    assert "Resolve the conflict in that file or restore a known-good lockfile" in message
+    assert message.index("Resolve the conflict") < message.index("retry your original command")
     for operation in ("apm outdated", "apm update"):
         assert operation not in message, (
             f"{operation!r} reads the same unreadable lockfile and MUST NOT be offered"
         )
-    resolving = next(i for i, c in enumerate(commands) if c.startswith("git "))
-    for i, command in enumerate(commands):
-        if command.startswith("apm "):
-            assert i > resolving, (
-                "an apm operation MUST be sequenced after the resolving action, "
-                f"but {command!r} precedes it"
-            )
+    assert "git checkout" not in message
+    assert "apm install" not in message
 
 
 @pytest.mark.req("req-lk-023")
-def test_lockfile_is_left_unmodified_across_reading_operations(tmp_path: Path) -> None:
+@pytest.mark.parametrize("newline", ["\n", "\r\n"], ids=["lf", "crlf"])
+def test_lockfile_is_left_unmodified_across_reading_operations(
+    tmp_path: Path, monkeypatch, newline: str
+) -> None:
     """Clause (c): recognition never removes, rewrites, or re-resolves the lockfile."""
-    import os
     from unittest.mock import patch
 
     from click.testing import CliRunner
@@ -840,16 +836,23 @@ def test_lockfile_is_left_unmodified_across_reading_operations(tmp_path: Path) -
     lockfile_path = tmp_path / "apm.lock.yaml"
 
     runner = CliRunner()
-    for args in (["install"], ["install", "--frozen"], ["install", "--dry-run"], ["lock"]):
-        lockfile_path.write_text(_CONFLICTED_LOCKFILE, encoding="utf-8")
-        cwd = os.getcwd()
-        os.chdir(tmp_path)
-        try:
-            with patch("apm_cli.commands._helpers.check_for_updates", return_value=None):
-                runner.invoke(cli, args, catch_exceptions=True)
-        finally:
-            os.chdir(cwd)
-        assert lockfile_path.read_text(encoding="utf-8") == _CONFLICTED_LOCKFILE, (
+    monkeypatch.chdir(tmp_path)
+    original = _CONFLICTED_LOCKFILE.replace("\n", newline).encode("utf-8")
+    for args, expected_exit in (
+        (["install"], 1),
+        (["install", "--frozen"], 1),
+        (["install", "--dry-run"], 0),
+        (["lock"], 1),
+    ):
+        lockfile_path.write_bytes(original)
+        with patch("apm_cli.commands._helpers.check_for_updates", return_value=None):
+            result = runner.invoke(cli, args, catch_exceptions=True)
+        assert result.exit_code == expected_exit, result.output
+        output = " ".join(result.output.split())
+        assert "conflict markers" in output
+        assert "apm.lock.yaml" in output
+        assert "restore a known-good lockfile" in output
+        assert lockfile_path.read_bytes() == original, (
             f"{args} MUST leave the conflicted lockfile byte-for-byte unmodified"
         )
 

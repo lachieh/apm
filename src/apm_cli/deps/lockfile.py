@@ -78,31 +78,15 @@ class UnsupportedLockfileVersionError(LockfileFormatError):
     """Raised when a lockfile declares a version this client cannot read."""
 
 
-def _command_path(path: Path) -> str:
-    """Render *path* as the caller would type it from the current directory.
-
-    A lockfile under the working directory prints as a short relative path; one
-    outside it -- a user-scope lockfile, or an ancestor project's -- keeps its
-    absolute form so the printed command cannot target a different local file.
-    """
-    try:
-        relative = Path(os.path.relpath(path))
-    except ValueError:  # different drive on Windows
-        return str(path)
-    return str(path) if relative.is_absolute() or ".." in relative.parts else str(relative)
-
-
 class LockfileConflictError(LockfileFormatError):
     """Raised when a lockfile still contains git merge conflict markers."""
 
     def __init__(self, path: Path) -> None:
         self.path = path
-        target = _command_path(path)
         super().__init__(
             f"{path} contains unresolved git merge conflict markers.\n"
-            "Resolve the conflict in that file, then reinstall:\n"
-            f"    git checkout {target} --ours # or --theirs, mid-merge only\n"
-            "    apm install"
+            "Resolve the conflict in that file or restore a known-good lockfile, "
+            "then retry your original command."
         )
 
 

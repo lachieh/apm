@@ -76,7 +76,7 @@ apm lock --verbose
 
 ## Export (SBOM inventory)
 
-`apm lock export` serializes the existing lockfile into an SBOM document. It is an **inventory** export, not a security attestation: it reads `apm.lock.yaml` only and never re-resolves, re-hashes, or touches the network or filesystem.
+`apm lock export` serializes the existing lockfile into an SBOM document. It is an **inventory** export, not a security attestation: `apm.lock.yaml` takes precedence, with legacy `apm.lock` read in place when the current filename is absent. Export never migrates or rewrites the lockfile, re-resolves dependencies, re-hashes content, or uses the network. `--output` writes only the exported document.
 
 ```bash
 apm lock export [OPTIONS]

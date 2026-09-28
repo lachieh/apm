@@ -179,16 +179,17 @@ This re-resolves and rewrites `apm.lock.yaml`. Commit the result.
 
 After a git merge that touched `apm.lock.yaml`, the file may still contain `<<<<<<<` / `>>>>>>>` markers. Commands that require the lockfile then report `apm.lock.yaml contains unresolved git merge conflict markers` instead of a YAML scanner error.
 
-The message names the recovery directly. Keep one side of the merge, then reinstall:
+Resolve the conflict in the named file, or restore a known-good lockfile.
+Review the repaired file against the merged `apm.yml`, then retry your original
+command with the same options, including `--global`, `--frozen`, or `--dry-run`.
+This applies even when the markers were copied or committed and no Git merge
+is in progress.
 
-```bash
-git checkout apm.lock.yaml --ours # or --theirs
-apm install
-```
-
-Keeping a side preserves that branch's recorded pins; `apm install` then resolves only what the merge added. Deleting the lockfile instead would re-resolve everything and silently move pins.
-
-APM never discards or rewrites a conflicted lockfile, so your recorded pins and deployment records are preserved until you resolve the conflict yourself. A lockfile that is invalid for any other reason still fails closed in the same way.
+APM leaves the conflicted bytes untouched; it does not discard or regenerate
+the file. Choosing one side during manual repair retains only that side's
+records. Changed or missing dependencies may resolve again on a later install,
+so review the resulting pins before committing. Preview, best-effort readers,
+and lockfiles invalid for other reasons keep their existing behavior.
 
 ### Drifted refs
 

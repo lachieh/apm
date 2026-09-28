@@ -15,7 +15,6 @@ from apm_cli.install.errors import FrozenInstallError, frozen_install_tip
 from apm_cli.install.request import InstallRequest
 from apm_cli.install.service import InstallService
 from apm_cli.models.dependency.reference import DependencyReference
-from tests.utils.diagnostic_recipe import shell_commands_in
 
 
 def _write_lockfile(project_dir: Path, deps: list[LockedDependency]) -> None:
@@ -97,7 +96,8 @@ class TestEnforceFrozen:
             InstallService.enforce_frozen(req)
 
         message = str(exc_info.value)
-        assert shell_commands_in(message), "the diagnostic MUST offer a runnable recovery"
+        assert "restore a known-good lockfile" in message
+        assert "retry your original command" in message
         assert "apm outdated" not in frozen_install_tip(exc_info.value)
         assert (tmp_path / "apm.lock.yaml").read_text() == conflicted
 

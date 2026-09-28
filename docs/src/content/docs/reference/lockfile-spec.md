@@ -409,10 +409,11 @@ an empty lockfile.
 A lockfile left with unresolved git merge conflict markers (`<<<<<<<`,
 `>>>>>>>`, or `|||||||` at the start of a line) is reported as a merge conflict
 rather than a YAML scanner error. Commands that require the lockfile name the
-file and the cause, and name the git command that keeps one side of the
-merge so you can reinstall from it. APM does not discard, rewrite, or re-resolve the file: the
-recorded bytes are preserved for you to resolve. A bare `=======` separator is
-not treated as a conflict marker.
+file and the cause, and direct you to resolve the conflict or restore a
+known-good lockfile before retrying your original command. APM does not
+discard, rewrite, or re-resolve the conflicted file. Preview and best-effort
+readers retain their existing exit behavior. A bare `=======` separator is
+not treated as a conflict marker. See [manual repair guidance](../../troubleshooting/install-failures/#merge-conflict-markers-in-the-lockfile).
 
 ## Example
 

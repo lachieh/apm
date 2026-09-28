@@ -249,7 +249,7 @@ def _run_lock(
 
 @lock.command(
     name="export",
-    help="Export an SBOM/inventory from the existing lockfile (reads apm.lock.yaml only)",
+    help="Export an SBOM/inventory from apm.lock.yaml, or legacy apm.lock without migration",
 )
 @click.option(
     "--format",

@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 
 from apm_cli.deps.lockfile import LockFile, LockfileConflictError, LockfileFormatError
-from tests.utils.diagnostic_recipe import shell_commands_in
 
 pytestmark = pytest.mark.component
 
@@ -36,9 +35,14 @@ _CONFLICTED_DIFF3 = (
 
 
 @pytest.mark.parametrize("text", [_CONFLICTED, _CONFLICTED_DIFF3])
-def test_read_names_the_file_and_a_manual_next_step(tmp_path: Path, text: str) -> None:
+@pytest.mark.parametrize("newline", ["\n", "\r\n"], ids=["lf", "crlf"])
+@pytest.mark.windows_compat
+def test_read_names_the_file_and_a_manual_next_step(
+    tmp_path: Path, text: str, newline: str
+) -> None:
     path = tmp_path / "apm.lock.yaml"
-    path.write_text(text, encoding="utf-8")
+    original = text.replace("\n", newline).encode("utf-8")
+    path.write_bytes(original)
 
     with pytest.raises(LockfileConflictError) as exc_info:
         LockFile.read(path)
@@ -46,14 +50,16 @@ def test_read_names_the_file_and_a_manual_next_step(tmp_path: Path, text: str) -
     message = str(exc_info.value)
     assert str(path) in message
     assert "conflict markers" in message
-    assert shell_commands_in(message), "a runnable next step MUST be offered"
+    assert "Resolve the conflict in that file or restore a known-good lockfile" in message
+    assert "then retry your original command" in message
     assert exc_info.value.path == path
+    assert path.read_bytes() == original
 
 
 def test_conflict_diagnostic_never_offers_a_bare_apm_command_as_the_repair(
     tmp_path: Path,
 ) -> None:
-    """An apm command may only appear sequenced after a step that resolves the file."""
+    """Repair advice preserves the original invocation rather than replacing it."""
     path = tmp_path / "apm.lock.yaml"
     path.write_text(_CONFLICTED, encoding="utf-8")
 
@@ -63,11 +69,9 @@ def test_conflict_diagnostic_never_offers_a_bare_apm_command_as_the_repair(
     message = str(exc_info.value)
     assert "apm outdated" not in message
     assert "apm update" not in message
-    lines = message.splitlines()
-    resolving = next(i for i, line in enumerate(lines) if "git checkout" in line)
-    for i, line in enumerate(lines):
-        if "apm install" in line:
-            assert i > resolving, f"{line!r} offers an apm command before the lockfile is resolved"
+    assert "git checkout" not in message
+    assert "apm install" not in message
+    assert message.index("Resolve the conflict") < message.index("retry your original command")
 
 
 def test_conflict_diagnostic_carries_no_raw_parser_content(tmp_path: Path) -> None:
@@ -143,26 +147,31 @@ def test_valid_lockfile_is_read_normally(tmp_path: Path) -> None:
     assert LockFile.read(path) is not None
 
 
-def test_recovery_command_targets_a_lockfile_under_the_working_directory(
+@pytest.mark.windows_compat
+def test_manual_guidance_names_a_path_with_shell_metacharacters(
     tmp_path: Path, monkeypatch
 ) -> None:
-    """A lockfile the caller can name relatively is named relatively."""
+    """The diagnosed path is data, not an unquoted shell argument."""
     monkeypatch.chdir(tmp_path)
-    path = tmp_path / "apm.lock.yaml"
+    directory = tmp_path / "space $and #hash"
+    directory.mkdir()
+    path = directory / "apm.lock.yaml"
     path.write_text(_CONFLICTED, encoding="utf-8")
 
     with pytest.raises(LockfileConflictError) as exc_info:
         LockFile.read(path)
 
-    command = next(c for c in shell_commands_in(str(exc_info.value)) if c.startswith("git "))
-    assert " apm.lock.yaml " in command
+    message = str(exc_info.value)
+    assert str(path) in message
+    assert "restore a known-good lockfile" in message
+    assert "git checkout" not in message
 
 
 @pytest.mark.parametrize("location", ["sibling", "ancestor"])
-def test_recovery_command_targets_a_lockfile_outside_the_working_directory(
+def test_manual_guidance_names_a_lockfile_outside_the_working_directory(
     tmp_path: Path, monkeypatch, location: str
 ) -> None:
-    """A user-scope or ancestor lockfile keeps its full path in the command.
+    """A user-scope or ancestor lockfile keeps its full path in the diagnostic.
 
     A bare basename would resolve against the caller's directory and act on a
     different file, or none.
@@ -179,7 +188,6 @@ def test_recovery_command_targets_a_lockfile_outside_the_working_directory(
     with pytest.raises(LockfileConflictError) as exc_info:
         LockFile.read(path)
 
-    command = next(c for c in shell_commands_in(str(exc_info.value)) if c.startswith("git "))
-    assert str(path) in command, (
-        f"{command!r} must name the diagnosed lockfile, not a path relative to {workdir}"
-    )
+    message = str(exc_info.value)
+    assert str(path) in message
+    assert "retry your original command" in message
